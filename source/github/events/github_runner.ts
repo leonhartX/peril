@@ -3,10 +3,12 @@ import winston from "../../logger"
 
 import { PERIL_BOT_USER_ID } from "../../globals"
 
+import { DangerResults } from "danger/distribution/dsl/DangerResults"
 import { GitHub } from "danger/distribution/platforms/GitHub"
 import { GitHubAPI } from "danger/distribution/platforms/github/GitHubAPI"
+import { jsonDSLGenerator } from "danger/distribution/runner/dslGenerator"
+import { jsonToDSL } from "danger/distribution/runner/jsonToDSL"
 
-import { DangerResults } from "danger/distribution/dsl/DangerResults"
 import { getTemporaryAccessTokenForInstallation } from "../../api/github"
 import { DangerRun, dangerRunForRules, dsl, feedback } from "../../danger/danger_run"
 import { executorForInstallation, runDangerForInstallation } from "../../danger/danger_runner"
@@ -16,6 +18,7 @@ import db from "../../db/getDB"
 import { GitHubInstallationSettings } from "../../db/GitHubRepoSettings"
 import { Pull_request } from "../events/types/pull_request_opened.types"
 import { canUserWriteToRepo, getGitHubFileContents } from "../lib/github_helpers"
+import { createPRDSL } from "./createPRDSL"
 
 /**
  * So, these function have a bunch of responsibilities.
@@ -111,7 +114,7 @@ export function runsForEvent(
 ) {
   const installationRun = dangerRunForRules(event, action, installation.rules)
   const repoRun = dangerRunForRules(event, action, settings.repoSpecificRules)
-  return [installationRun, repoRun].filter(r => !!r) as DangerRun[]
+  return [...installationRun, ...repoRun].filter(r => !!r) as DangerRun[]
 }
 
 export const runEverything = async (
@@ -203,7 +206,7 @@ export const runEventRun = async (
     githubAPI,
     run.dslType,
     installationSettings,
-    dangerDSL
+    { github: dangerDSL }
   )
 }
 
@@ -272,16 +275,7 @@ ${JSON.stringify(stateForErrorHandling, null, "  ")}
       `
   }
 
-  if (headDangerfile !== "") {
-    const results = await runDangerForInstallation(headDangerfile, run.dangerfilePath, githubAPI, run.dslType, {
-      id: settings.installationID,
-      settings: settings.installationSettings,
-    })
-    if (pr.body !== null && pr.body.includes("Peril: Debug")) {
-      results.markdowns.push(reportData("Showing PR details due to including 'Peril: Debug'"))
-    }
-    return results
-  } else {
+  if (headDangerfile === "") {
     const actualBranch = branch ? branch : "master"
     const message = `Could not find Dangerfile at <code>${run.dangerfilePath}</code> on <code>${
       repoForDangerfile
@@ -289,6 +283,28 @@ ${JSON.stringify(stateForErrorHandling, null, "  ")}
 
     const report = reportData(message)
     return { fails: [{ message: report }], markdowns: [], warnings: [], messages: [] }
+  } else {
+    // Everything is :+1:
+
+    const installationSettings = {
+      id: settings.installationID,
+      settings: settings.installationSettings,
+    }
+
+    const dsl = await createPRDSL(githubAPI)
+    const results = await runDangerForInstallation(
+      headDangerfile,
+      run.dangerfilePath,
+      githubAPI,
+      run.dslType,
+      installationSettings,
+      dsl
+    )
+
+    if (pr.body !== null && pr.body.includes("Peril: Debug")) {
+      results.markdowns.push(reportData("Showing PR details due to including 'Peril: Debug'"))
+    }
+    return results
   }
 }
 
@@ -315,10 +331,10 @@ export const mergeResults = (results: DangerResults[]): DangerResults => {
   )
 }
 
-export const commentOnResults = async (dslType: dsl, results: DangerResults, token, settings) => {
+export const commentOnResults = async (dsl: dsl, results: DangerResults, token, settings) => {
   const githubAPI = githubAPIForCommentable(token, settings.repoName, settings.commentableID)
   const gh = new GitHub(githubAPI)
-  const platform = perilPlatform(dslType, gh, {})
+  const platform = perilPlatform(dsl, gh, {})
   const exec = executorForInstallation(platform)
   await exec.handleResults(results)
 }
