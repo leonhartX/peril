@@ -63,6 +63,7 @@
     "ts-jest": "^21",
     "ts-node": "^3.3.0",
     "tslint": "^5.4.3",
+    "tslint-config-prettier": "^1.1.0",
     "typescript": "^2.3.2",
     "typings": "^2.0.0",
     "winston": "^2.3.1",

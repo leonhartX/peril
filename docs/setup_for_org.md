@@ -126,6 +126,24 @@ This setup will:
 * Listen for the event `"issue"`, and will pull `"dangerfiles/issue.js"` from the repo: `orta/peril-bootstrap`.
 * Listen for the event `"issue"` event, and only if the action is `"created"` and will pull `"lock_old_issues.ts"` from
   the same repo: `orta/ORStackView`. So it would ignore issue updates or deletes.
+## Heroku
+
+Ok, so, you need a heroku account. So sign up if you've not. This post will wait for you.
+
+Click: [![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy?template=https://github.com/leonhartX/peril)
+ . It's the "auto-heroku-ize" button that will walk you through setting up the environment variables for running Danger for just one org.
+
+It should take you to a page like this:
+
+![](images/heroku_setup.png)
+
+You need to go through adding the environment variables. The `app.json` is self-documenting about the variables that need to be set.
+
+# Hooking the integration to your repo
+
+Go to:  <https://[your-heroku-app].herokuapp.com/> - it should show a really simple "Hello world" page. That means the server launched.
+
+Back to your integration settings. You can skip the "Setup URL", but you need to set your "Webhook URL". This is the heroku URL for the webhook, it is `https://[your-heroku-app].herokuapp.com/webhook`
 
 You can actually use `orta/example-peril` BTW, I have some dummy Dangerfiles on that repo exactly for this purpose. Save
 the above JSON as `peril-settings.json`. Add that to a repo, push it to master on your GitHub remote. Here's one [I did
